@@ -4,11 +4,11 @@ using Photon.Pun;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
 using BepInEx.Logging;
-using BoomboxCartMod;
+using BoomBoxCartMod;
 using System;
 using Photon.Chat;
 
-namespace BoomboxCartMod
+namespace BoomBoxCartMod
 {
 	public class BoomboxUI : MonoBehaviourPun
 	{
