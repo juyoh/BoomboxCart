@@ -2,7 +2,6 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using BoomBoxCartMod.Util;
 using UnityEngine.Networking;
 using System;
 using System.IO;
@@ -10,8 +9,10 @@ using BepInEx.Logging;
 using System.Text.RegularExpressions;
 using System.Collections;
 using System.Linq;
+using Photon.Realtime;
+using System.Xml;
 
-namespace BoomBoxCartMod
+namespace BoomboxCartMod
 {
 	public class Boombox : MonoBehaviourPunCallbacks
 	{
@@ -70,6 +71,8 @@ namespace BoomBoxCartMod
 		// SoundCloud URLs
 		new Regex(@"^((?:https?:)?\/\/)?((?:www|m)\.)?(soundcloud\.com|snd\.sc)\/([\w\-]+\/[\w\-]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase)
 		};
+		private static readonly string historyFilePath = Path.Combine(Directory.GetCurrentDirectory(), "BoomboxedCart/history.txt");
+		public static HistoryEntry[] historyEntries = new HistoryEntry[0];
 
 		private void Awake()
 		{
@@ -117,6 +120,7 @@ namespace BoomBoxCartMod
 			}
 
 			Logger.LogInfo($"Boombox initialized on this cart. AudioSource: {audioSource}, PhotonView: {photonView}");
+			loadHistory();
 		}
 
 		private void Update()
@@ -218,6 +222,9 @@ namespace BoomBoxCartMod
 				{
 					var (filePath, title) = await YoutubeDL.DownloadAudioWithTitleAsync(url);
 
+
+					addToHistory(url, songTitles.ContainsKey(url) ? songTitles[url] : title);
+
 					songTitles[url] = title;
 					photonView.RPC("SetSongTitle", RpcTarget.AllBuffered, url, title);
 					//Logger.LogInfo($"Set song title for url: {url} to {title}");
@@ -266,7 +273,10 @@ namespace BoomBoxCartMod
 				(PhotonNetwork.IsMasterClient && (requesterId != PhotonNetwork.LocalPlayer.ActorNumber || isTimeoutRecovery)))
 			{
 				//Logger.LogInfo("Waiting for all players to be ready for playback...");
-				await WaitForPlayersReadyOrFailed(url);
+				if (PhotonNetwork.IsConnected)
+				{
+					await WaitForPlayersReadyOrFailed(url);
+				}
 
 				// check if current request ID is still valid (prob wont happen)
 				if (currentRequestId != requestId)
@@ -284,7 +294,16 @@ namespace BoomBoxCartMod
 				}
 
 				Logger.LogInfo($"All players ready for playback. Initiating sync playback for {downloadsReady[url].Count} players.");
-				photonView.RPC("SyncPlayback", RpcTarget.All, url, requesterId);
+				if (PhotonNetwork.IsConnected)
+				{
+					photonView.RPC("SyncPlayback", RpcTarget.All, url, requesterId);
+				} else
+				{
+					// singleplayer
+					SyncPlayback(url, requesterId);
+				}
+				
+
 			}
 
 			if (timeoutCoroutines.TryGetValue(requestId, out Coroutine coroutine) && coroutine != null)
@@ -311,6 +330,8 @@ namespace BoomBoxCartMod
 		[PunRPC]
 		public void ReportDownloadError(int actorNumber, string url, string errorMessage)
 		{
+
+			isDownloadInProgress = false;
 			Logger.LogError($"Player {actorNumber} reported download error for {url}: {errorMessage}");
 
 			if (!downloadErrors.ContainsKey(url))
@@ -320,6 +341,7 @@ namespace BoomBoxCartMod
 
 			if (actorNumber == PhotonNetwork.LocalPlayer.ActorNumber)
 			{
+				
 				UpdateUIStatus($"Error: {errorMessage}");
 			}
 		}
@@ -607,6 +629,7 @@ namespace BoomBoxCartMod
 				ui.UpdateStatus(message);
 			}
 		}
+		
 
 		public override void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer)
 		{
@@ -705,5 +728,78 @@ namespace BoomBoxCartMod
 				return clip;
 			}
 		}
+		public static bool hasHistory()
+		{
+			return historyEntries != null && historyEntries.Length > 0;
+		}
+		public static void addToHistory(string url, string title)
+		{
+			if (historyEntries.Any(entry => entry.url == url))
+			{
+				return;
+			}
+			HistoryEntry newEntry = new HistoryEntry(url, title);
+			historyEntries = historyEntries.Append(newEntry).ToArray();
+
+			// enforce max history size of 10
+			if (historyEntries.Length > 10)
+			{
+				historyEntries = historyEntries.Skip(historyEntries.Length - 10).ToArray();
+			}
+
+			saveHistory();
+		}
+		public static void clearHistory()
+		{
+			historyEntries = new HistoryEntry[0];
+			saveHistory();
+		}
+		public static void loadHistory()
+		{
+			if (File.Exists(historyFilePath))
+			{
+				FileStream fs = new FileStream(historyFilePath, FileMode.Open, FileAccess.Read);
+				XmlReader xmlReader = XmlReader.Create(fs);
+				xmlReader.ReadToFollowing("HistoryEntries");
+				if (xmlReader.ReadToDescendant("HistoryEntry"))
+				{
+					List<HistoryEntry> newEntries = new List<HistoryEntry>();
+					do
+					{
+						string url = xmlReader.GetAttribute("Url");
+						string title = xmlReader.GetAttribute("Title");
+						if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(title))
+						{
+							newEntries.Add(new HistoryEntry(url, title));
+						}
+					} while (xmlReader.ReadToNextSibling("HistoryEntry"));
+					historyEntries = newEntries.ToArray();
+				}
+				else
+				{
+					Logger.LogInfo("history.txt is empty!");
+				}
+			}
+		}
+		public static void saveHistory()
+		{
+			using (FileStream fs = new FileStream(historyFilePath, FileMode.Create, FileAccess.Write))
+			using (XmlWriter xmlWriter = XmlWriter.Create(fs, new XmlWriterSettings { Indent = true }))
+			{
+				xmlWriter.WriteStartDocument();
+				xmlWriter.WriteStartElement("HistoryEntries");
+				foreach (var entry in historyEntries)
+				{
+					xmlWriter.WriteStartElement("HistoryEntry");
+					xmlWriter.WriteAttributeString("Url", entry.url);
+					xmlWriter.WriteAttributeString("Title", entry.title);
+					xmlWriter.WriteEndElement();
+				}
+				xmlWriter.WriteEndElement();
+				xmlWriter.WriteEndDocument();
+			}
+			Logger.LogInfo($"Saved {historyEntries.Length} history entries to {historyFilePath}");
+		}
+		
 	}
 }

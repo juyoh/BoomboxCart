@@ -2,10 +2,10 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using BepInEx.Logging;
-using BoomBoxCartMod.Patches;
+using BoomboxCartMod.Patches;
 using System;
 
-namespace BoomBoxCartMod
+namespace BoomboxCartMod
 {
 	public class BoomboxController : MonoBehaviourPun
 	{
@@ -53,6 +53,11 @@ namespace BoomBoxCartMod
 			//Logger.LogInfo($"Local player {localPlayerId} requesting boombox control");
 
 			photonView.RPC("RequestControl", RpcTarget.MasterClient, localPlayerId);
+			if (!PhotonNetwork.IsConnected)
+			{
+				// singleplayer
+				SetController(localPlayerId);
+			}
 		}
 
 		[PunRPC]
@@ -131,8 +136,15 @@ namespace BoomBoxCartMod
 		{
 			if (currentControllerId == PhotonNetwork.LocalPlayer.ActorNumber)
 			{
-				//Logger.LogInfo($"Player {PhotonNetwork.LocalPlayer.ActorNumber} releasing boombox control");
-				photonView.RPC("RequestRelease", RpcTarget.MasterClient, PhotonNetwork.LocalPlayer.ActorNumber);
+				if (PhotonNetwork.IsConnected)
+				{
+					photonView.RPC("RequestRelease", RpcTarget.MasterClient, PhotonNetwork.LocalPlayer.ActorNumber);
+				}
+				else
+				{
+					//singleplayer
+					RequestRelease(PhotonNetwork.LocalPlayer.ActorNumber);
+				}
 			}
 		}
 
@@ -144,8 +156,16 @@ namespace BoomBoxCartMod
 
 			if (currentControllerId == releaserId)
 			{
-				//Logger.LogInfo($"Master client processing release request from player {releaserId}");
-				photonView.RPC("SetController", RpcTarget.All, -1);
+				if (PhotonNetwork.IsConnected)
+				{
+					//Logger.LogInfo($"Master client processing release request from player {releaserId}");
+					photonView.RPC("SetController", RpcTarget.All, -1);
+				}
+				else
+				{
+					//singleplayer
+					SetController(-1);
+				}
 			}
 		}
 

@@ -4,9 +4,11 @@ using Photon.Pun;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
 using BepInEx.Logging;
+using BoomboxCartMod;
 using System;
+using Photon.Chat;
 
-namespace BoomBoxCartMod
+namespace BoomboxCartMod
 {
 	public class BoomboxUI : MonoBehaviourPun
 	{
@@ -57,6 +59,7 @@ namespace BoomBoxCartMod
 		private bool previousCursorVisible;
 		private bool stylesInitialized = false;
 		private Vector2 scrollPosition = Vector2.zero;
+		private Vector2 historyScrollPosition = Vector2.zero;
 
 		private bool shouldClearFocus = false;
 
@@ -82,7 +85,7 @@ namespace BoomBoxCartMod
 					Logger.LogError("BoomboxUI: Failed to find PhotonView component");
 				}
 
-				windowRect = new Rect(Screen.width / 2 - 200, Screen.height / 2 - 175, 400, 550);
+				windowRect = new Rect(Screen.width / 2 - 200, Screen.height / 2 - 175, 400, 590 + Boombox.historyEntries.Length * 35);
 
 				//Logger.LogInfo($"BoomboxUI initialized. Boombox: {boombox}, PhotonView: {photonView}, Controller: {controller}");
 			}
@@ -466,7 +469,15 @@ namespace BoomBoxCartMod
 			{
 				if (IsValidVideoUrl(urlInput))
 				{
-					photonView.RPC("RequestSong", RpcTarget.All, urlInput, PhotonNetwork.LocalPlayer.ActorNumber);
+					if (PhotonNetwork.IsConnected)
+					{
+						photonView.RPC("RequestSong", RpcTarget.All, urlInput, PhotonNetwork.LocalPlayer.ActorNumber);
+					}
+					else
+					{
+						//singleplayer
+						boombox.RequestSong(urlInput, PhotonNetwork.LocalPlayer.ActorNumber);
+					}
 					GUI.FocusControl(null);
 				}
 				else
@@ -479,7 +490,24 @@ namespace BoomBoxCartMod
 			GUI.enabled = boombox != null && boombox.isPlaying;
 			if (GUILayout.Button("\u25A0 STOP", buttonStyle, GUILayout.Height(40)))
 			{
-				photonView.RPC("StopPlayback", RpcTarget.All, PhotonNetwork.LocalPlayer.ActorNumber);
+				if (PhotonNetwork.IsConnected)
+				{
+					if (PhotonNetwork.IsConnected)
+					{
+						photonView.RPC("StopPlayback", RpcTarget.All, PhotonNetwork.LocalPlayer.ActorNumber);
+					}
+					else
+					{
+						//singleplayer
+						boombox.StopPlayback(PhotonNetwork.LocalPlayer.ActorNumber);
+					}
+				}
+				else
+				{
+					//singleplayer
+					boombox.StopPlayback(PhotonNetwork.LocalPlayer.ActorNumber);
+				}
+
 				GUI.FocusControl(null);
 			}
 			GUI.enabled = true;
@@ -502,6 +530,11 @@ namespace BoomBoxCartMod
 			GUILayout.FlexibleSpace();
 			if (GUILayout.Button("Close", buttonStyle, GUILayout.Width(100), GUILayout.Height(30)))
 			{
+				if (!PhotonNetwork.IsConnected)
+				{
+					// singleplayer
+					HideUI();
+				}
 				if (controller != null)
 				{
 					controller.ReleaseControl();
@@ -514,6 +547,49 @@ namespace BoomBoxCartMod
 			GUILayout.FlexibleSpace();
 			GUILayout.EndHorizontal();
 
+				historyScrollPosition = GUILayout.BeginScrollView(historyScrollPosition, false, false, GUILayout.ExpandHeight(true));
+			GUILayout.FlexibleSpace();
+			if (Boombox.historyEntries.Length > 0)
+			{
+				GUILayout.Label("Recently Played:", labelStyle);
+			}
+			for (int i = 0; i < Boombox.historyEntries.Length; i++)
+			{
+				int index = Boombox.historyEntries.Length - 1 - i;
+				HistoryEntry entry = Boombox.historyEntries[index];
+				if (GUILayout.Button("▶  " + entry.title, smallButtonStyle, GUILayout.Height(30)))
+				{
+					urlInput = entry.url;
+
+					GUI.FocusControl(null);
+					if (IsValidVideoUrl(urlInput))
+					{
+						if (PhotonNetwork.IsConnected)
+						{
+							photonView.RPC("RequestSong", RpcTarget.All, urlInput, PhotonNetwork.LocalPlayer.ActorNumber);
+						}
+						else
+						{
+							//singleplayer
+							boombox.RequestSong(urlInput, PhotonNetwork.LocalPlayer.ActorNumber);
+						}
+					}
+					else
+					{
+						ShowErrorMessage("Invalid Video URL from history!");
+					}
+				}
+			}
+			if (Boombox.historyEntries.Length > 0)
+			{
+				if (GUILayout.Button("Clear History", buttonStyle, GUILayout.Height(30)))
+				{
+					Boombox.clearHistory();
+				}
+			}
+			GUILayout.EndScrollView();	
+			
+			
 			GUI.DragWindow(new Rect(0, 0, windowRect.width, 30));
 		}
 

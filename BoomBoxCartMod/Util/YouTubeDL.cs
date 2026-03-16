@@ -8,7 +8,7 @@ using System.Linq;
 using BepInEx.Logging;
 using System.Text;
 
-namespace BoomBoxCartMod.Util
+namespace BoomboxCartMod
 {
 	public static class YoutubeDL
 	{
