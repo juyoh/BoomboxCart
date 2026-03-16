@@ -1,4 +1,4 @@
-namespace BoomboxCartMod;
+namespace BoomBoxCartMod;
 
 public class HistoryEntry
 {
