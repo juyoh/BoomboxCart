@@ -12,7 +12,7 @@ using System.Linq;
 using Photon.Realtime;
 using System.Xml;
 
-namespace BoomboxCartMod
+namespace BoomBoxCartMod
 {
 	public class Boombox : MonoBehaviourPunCallbacks
 	{
