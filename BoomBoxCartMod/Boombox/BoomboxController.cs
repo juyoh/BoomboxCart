@@ -2,10 +2,10 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using BepInEx.Logging;
-using BoomboxCartMod.Patches;
+using BoomBoxCartMod.Patches;
 using System;
 
-namespace BoomboxCartMod
+namespace BoomBoxCartMod
 {
 	public class BoomboxController : MonoBehaviourPun
 	{
