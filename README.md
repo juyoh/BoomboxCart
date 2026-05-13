@@ -3,6 +3,7 @@
 Adds a "Boombox" component into the cart with its own UI that plays video links as audio from the cart. 
 Has volume and quality sliders as well to configure the music to your liking. One player can control the 
 Boombox UI at any time, and everyone (with the mod installed) can hear the songs you play too!
+ADDED IN JUYOH'S FORK: History system for easy song playback
 
 Current websites you can play audio from:
  - Youtube
@@ -26,7 +27,7 @@ Reach out to me (link at the end) for issues with any service listed here, or su
 </ol>
 <p>Known Issues:</p>
 <ul>
-    <li>Singleplayer does NOT work at all. Clicking "Host Game" and playing solo works though!</li>
+    <li>FIXED IN JUYOH'S FORK: Singleplayer does NOT work at all. Clicking "Host Game" and playing solo works though!</li>
     <li>Small stutter when audio is downloaded (longer video, longer stutter)</li>
 </ul>
 
